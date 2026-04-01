@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>AgentFactory Litepaper — CorticalFactory</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=Inter:wght@300;400;500&display=swap" rel="stylesheet"/>
+<style>
+  :root {
+    --bg: #f9f8f6;
+    --ink: #0f0f12;
+    --soft: #6b6b7a;
+    --rule: rgba(15,15,18,0.08);
+    --dot-b: #3b6bff;
+    --dot-p: #9c3dff;
+    --dot-r: #e84d1c;
+    --dot-g: #00c897;
+    --dot-y: #f5a623;
+    --dot-pk: #e84d8a;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: 'Inter', sans-serif;
+    font-size: 15px;
+    line-height: 1.7;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* GRID BG */
+  .grid-bg {
+    position: fixed; inset: 0; pointer-events: none; z-index: 0;
+    background-image:
+      linear-gradient(var(--rule) 1px, transparent 1px),
+      linear-gradient(90deg, var(--rule) 1px, transparent 1px);
+    background-size: 48px 48px;
+  }
+
+  /* HORIZONTAL COLOUR LINES */
+  .hline {
+    position: fixed; left: 0; right: 0; height: 1px;
+    pointer-events: none; z-index: 0;
+  }
+
+  /* FLOATING DECO */
+  .deco { position: fixed; pointer-events: none; z-index: 0; }
+  .deco-dot { border-radius: 50%; width: 7px; height: 7px; }
+  .deco-circle { border-radius: 50%; border: 1.5px solid rgba(15,15,18,0.15); background: transparent; }
+  .deco-sq { border: 1.5px solid rgba(15,15,18,0.12); background: transparent; transform: rotate(12deg); }
+
+  /* PAGE */
+  .page {
+    position: relative; z-index: 1;
+    max-width: 780px; margin: 0 auto;
+    padding: 0 48px 160px;
+  }
+
+  /* COVER */
+  .cover {
+    min-height: 100vh;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    text-align: center; padding: 80px 0;
+  }
+  .cover-logo { margin-bottom: 52px; }
+  .cover-logo img { height: 30px; opacity: 0.8; }
+  .cover-eye {
+    display: flex; align-items: center; gap: 8px; justify-content: center;
+    font-size: 11px; font-weight: 500; letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--soft); margin-bottom: 26px;
+  }
+  .cover-eye-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--dot-b); }
+  .cover-title {
+    font-family: 'Syne', sans-serif;
+    font-size: clamp(56px, 9vw, 92px);
+    font-weight: 800; line-height: 1.0;
+    letter-spacing: -0.03em; color: var(--ink); margin-bottom: 26px;
+  }
+  .cover-sub {
+    font-size: 16px; font-weight: 300; color: var(--soft);
+    max-width: 460px; margin: 0 auto 40px; line-height: 1.7;
+  }
+  .cover-pills { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-bottom: 60px; }
+  .pill {
+    font-size: 11px; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase;
+    padding: 6px 14px; border-radius: 100px;
+    border: 1px solid var(--rule); color: var(--soft);
+    background: rgba(255,255,255,0.6);
+    display: flex; align-items: center; gap: 6px;
+  }
+  .pill-dot { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; }
+  .cover-label {
+    font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase;
+    color: rgba(15,15,18,0.25);
+    display: flex; align-items: center; gap: 10px;
+  }
+  .cover-label::before, .cover-label::after {
+    content: ''; display: block; width: 28px; height: 1px; background: rgba(15,15,18,0.18);
+  }
+
+  /* DIVIDER */
+  .divider {
+    display: flex; align-items: center; gap: 16px;
+    margin: 80px 0 52px;
+  }
+  .div-line { flex: 1; height: 1px; background: var(--rule); }
+  .div-num {
+    font-family: 'Syne', sans-serif; font-size: 11px; font-weight: 700;
+    letter-spacing: 0.18em; color: rgba(15,15,18,0.28);
+  }
+
+  /* SECTION */
+  .s-title {
+    font-family: 'Syne', sans-serif;
+    font-size: clamp(28px, 4vw, 42px); font-weight: 800;
+    line-height: 1.1; letter-spacing: -0.025em; margin-bottom: 22px;
+  }
+  .s-body {
+    font-size: 15.5px; font-weight: 300; color: #3a3a45;
+    line-height: 1.75; margin-bottom: 16px;
+  }
+
+  /* PULL QUOTE */
+  .pq { margin: 44px 0; text-align: center; }
+  .pq p {
+    font-family: 'Syne', sans-serif;
+    font-size: clamp(19px, 3vw, 25px); font-weight: 700;
+    line-height: 1.35; letter-spacing: -0.015em; color: var(--ink);
+  }
+  .pq-bar { width: 36px; height: 2px; margin: 18px auto 0; }
+
+  /* DOTS ROW */
+  .dr { display: flex; align-items: center; gap: 6px; margin: 30px 0; }
+  .dr span { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+  .dr-line { flex: 1; height: 1px; background: var(--rule); }
+
+  /* SPLIT TABLE */
+  .split {
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 1px; margin: 34px 0;
+    border: 1px solid var(--rule); background: var(--rule);
+    border-radius: 2px; overflow: hidden;
+  }
+  .sc { background: var(--bg); padding: 26px 22px; }
+  .sc h4 {
+    font-family: 'Syne', sans-serif; font-size: 11px; font-weight: 700;
+    letter-spacing: 0.15em; text-transform: uppercase;
+    color: var(--soft); margin-bottom: 14px;
+  }
+  .sc ul { list-style: none; }
+  .sc ul li {
+    font-size: 14px; font-weight: 300; color: #3a3a45;
+    padding: 7px 0; border-bottom: 1px solid var(--rule);
+    display: flex; align-items: center; gap: 10px;
+  }
+  .sc ul li:last-child { border-bottom: none; }
+  .lm { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; }
+  .lx { color: rgba(15,15,18,0.22); font-size: 12px; }
+  .lg { color: rgba(15,15,18,0.35); font-weight: 300; }
+
+  /* CAP LIST */
+  .cap-list { list-style: none; margin: 30px 0; }
+  .cap-list li {
+    display: flex; align-items: flex-start; gap: 18px;
+    padding: 20px 0; border-bottom: 1px solid var(--rule);
+  }
+  .cap-list li:first-child { border-top: 1px solid var(--rule); }
+  .cap-d { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; margin-top: 6px; }
+  .cap-n {
+    font-family: 'Syne', sans-serif; font-size: 11px; font-weight: 700;
+    letter-spacing: 0.1em; color: rgba(15,15,18,0.25); min-width: 26px; padding-top: 2px;
+  }
+  .cap-c h4 {
+    font-family: 'Syne', sans-serif; font-size: 15px; font-weight: 700;
+    letter-spacing: 0.01em; margin-bottom: 4px;
+  }
+  .cap-c p { font-size: 14px; font-weight: 300; color: var(--soft); line-height: 1.6; margin: 0; }
+
+  /* BAND */
+  .band {
+    border: 1px solid var(--rule); border-left: 3px solid var(--ink);
+    padding: 26px 30px; margin: 38px 0;
+    background: rgba(255,255,255,0.5);
+  }
+  .band p {
+    font-family: 'Syne', sans-serif; font-size: 17px; font-weight: 600;
+    line-height: 1.5; letter-spacing: -0.01em; color: var(--ink); margin: 0;
+  }
+
+  /* WOW GRID */
+  .wow-grid {
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 1px; margin: 34px 0;
+    border: 1px solid var(--rule); background: var(--rule);
+    border-radius: 2px; overflow: hidden;
+  }
+  .wc { background: var(--bg); padding: 26px 24px; }
+  .wc-dot { width: 8px; height: 8px; border-radius: 50%; margin-bottom: 13px; }
+  .wc h4 {
+    font-family: 'Syne', sans-serif; font-size: 14px; font-weight: 700;
+    letter-spacing: 0.01em; margin-bottom: 7px; color: var(--ink);
+  }
+  .wc p { font-size: 13.5px; font-weight: 300; color: var(--soft); line-height: 1.6; margin: 0; }
+
+  /* PATTERN TILES */
+  .ptiles { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 30px 0; }
+  .ptile { padding: 22px 20px; border: 1px solid var(--rule); border-radius: 2px; background: rgba(255,255,255,0.4); }
+  .pt-head { display: flex; align-items: center; gap: 9px; margin-bottom: 10px; }
+  .pt-head span { font-family: 'Syne', sans-serif; font-size: 13px; font-weight: 700; color: var(--ink); }
+  .ptile ul { list-style: none; }
+  .ptile ul li {
+    font-size: 13px; font-weight: 300; color: var(--soft);
+    padding: 4px 0 4px 12px; border-bottom: 1px solid var(--rule);
+    position: relative;
+  }
+  .ptile ul li::before { content: '–'; position: absolute; left: 0; color: rgba(15,15,18,0.22); }
+  .ptile ul li:last-child { border-bottom: none; }
+
+  /* CLOSING */
+  .closing { margin-top: 96px; text-align: center; padding: 72px 0 0; border-top: 1px solid var(--rule); }
+  .closing h2 {
+    font-family: 'Syne', sans-serif; font-size: clamp(30px, 5vw, 50px);
+    font-weight: 800; line-height: 1.1; letter-spacing: -0.03em; margin-bottom: 18px;
+  }
+  .closing p {
+    font-size: 15px; font-weight: 300; color: var(--soft);
+    max-width: 460px; margin: 0 auto 36px; line-height: 1.7;
+  }
+  .ctags { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; }
+  .ctag {
+    font-size: 11px; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase;
+    padding: 7px 14px; border: 1px solid var(--rule); border-radius: 100px;
+    color: rgba(15,15,18,0.38);
+  }
+
+  /* FOOTER */
+  .footer {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 36px 0 48px; margin-top: 72px; border-top: 1px solid var(--rule);
+  }
+  .footer img { height: 22px; opacity: 0.45; }
+  .footer span { font-size: 11px; letter-spacing: 0.1em; color: rgba(15,15,18,0.28); text-transform: uppercase; }
+
+  @media (max-width: 620px) {
+    .page { padding: 0 22px 100px; }
+    .wow-grid, .split, .ptiles { grid-template-columns: 1fr; }
+    .cover-title { font-size: 48px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- GRID -->
+<div class="grid-bg"></div>
+
+<!-- COLOUR LINES -->
+<div class="hline" style="top:22%;background:linear-gradient(90deg,transparent,rgba(59,107,255,0.22),transparent);"></div>
+<div class="hline" style="top:52%;background:linear-gradient(90deg,transparent,rgba(232,77,138,0.18),transparent);"></div>
+<div class="hline" style="top:76%;background:linear-gradient(90deg,transparent,rgba(0,200,151,0.18),transparent);"></div>
+
+<!-- DOTS -->
+<div class="deco deco-dot" style="top:11%;left:5%;background:var(--dot-b);"></div>
+<div class="deco deco-dot" style="top:26%;right:7%;background:var(--dot-p);"></div>
+<div class="deco deco-dot" style="top:43%;left:3%;background:var(--dot-pk);"></div>
+<div class="deco deco-dot" style="top:60%;right:5%;background:var(--dot-y);"></div>
+<div class="deco deco-dot" style="top:78%;left:8%;background:var(--dot-g);"></div>
+<div class="deco deco-dot" style="top:89%;right:10%;background:var(--dot-b);"></div>
+<div class="deco deco-dot" style="top:35%;left:91%;background:var(--dot-r);"></div>
+
+<!-- SHAPES -->
+<div class="deco deco-circle" style="width:76px;height:76px;top:7%;left:4%;"></div>
+<div class="deco deco-sq" style="width:50px;height:50px;bottom:15%;left:3%;"></div>
+
+<!-- HEXAGON -->
+<svg class="deco" style="width:50px;bottom:20%;left:9%;opacity:0.4;" viewBox="0 0 52 60" fill="none">
+  <polygon points="26,2 50,15 50,45 26,58 2,45 2,15" stroke="rgba(15,15,18,0.22)" stroke-width="1.5" fill="none"/>
+</svg>
+<svg class="deco" style="width:34px;top:33%;right:5%;opacity:0.35;" viewBox="0 0 52 60" fill="none">
+  <polygon points="26,2 50,15 50,45 26,58 2,45 2,15" stroke="rgba(15,15,18,0.2)" stroke-width="1.5" fill="none"/>
+</svg>
+
+<!-- DASHED RING -->
+<svg class="deco" style="width:50px;bottom:34%;right:5%;" viewBox="0 0 52 52" fill="none">
+  <circle cx="26" cy="26" r="21" stroke="var(--dot-pk)" stroke-width="5" stroke-dasharray="7 5"/>
+</svg>
+
+<!-- PAGE -->
+<div class="page">
+
+  <!-- COVER -->
+  <div class="cover">
+    <div class="cover-logo">
+      <img src="https://corticalfactory.com/mainlogo.png" alt="CorticalFactory"/>
+    </div>
+    <div class="cover-eye">
+      <span class="cover-eye-dot"></span>
+      Platform Litepaper · 2025
+    </div>
+    <h1 class="cover-title">Agent<br/>Factory</h1>
+    <p class="cover-sub">The workflow runtime for AI that doesn't just answer — it executes, remembers, and follows through.</p>
+    <div class="cover-pills">
+      <span class="pill"><span class="pill-dot" style="background:var(--dot-b);"></span>Persistent Memory</span>
+      <span class="pill"><span class="pill-dot" style="background:var(--dot-g);"></span>Autonomous Execution</span>
+      <span class="pill"><span class="pill-dot" style="background:var(--dot-p);"></span>Protocol-Driven</span>
+    </div>
+    <div class="cover-label">litepaper</div>
+  </div>
+
+  <!-- 01 -->
+  <div class="divider"><div class="div-line"></div><span class="div-num">01</span><div class="div-line"></div></div>
+  <h2 class="s-title">The Short Version</h2>
+  <p class="s-body">AgentFactory is a workflow runtime for building AI systems that can operate reliably over time, not just answer one prompt at a time.</p>
+  <p class="s-body">It is designed for organisations that want AI to do more than chat — coordinate work, follow through across days and weeks, ask for missing information, create and track commitments, trigger reminders and follow-ups, escalate when things stall, and keep thread continuity across channels.</p>
+  <div class="dr">
+    <span style="background:var(--dot-b);"></span><div class="dr-line"></div>
+    <span style="background:var(--dot-p);"></span><div class="dr-line"></div>
+    <span style="background:var(--dot-g);"></span><div class="dr-line"></div>
+    <span style="background:var(--dot-y);"></span>
+  </div>
+  <div class="pq">
+    <p>AgentFactory helps teams turn language intelligence into operational execution.</p>
+    <div class="pq-bar" style="background:var(--dot-b);"></div>
+  </div>
+
+  <!-- 02 -->
+  <div class="divider"><div class="div-line"></div><span class="div-num">02</span><div class="div-line"></div></div>
+  <h2 class="s-title">Why This Exists</h2>
+  <p class="s-body">Most AI systems are impressive in the moment but weak over time. Enterprise work requires multiple steps, multiple people, multiple systems, delays between actions, ambiguous inputs, approvals, follow-ups, and escalations. That is where most AI systems break down.</p>
+  <div class="split">
+    <div class="sc">
+      <h4>What AI Can Do Today</h4>
+      <ul>
+        <li><span class="lm" style="background:rgba(15,15,18,0.2);"></span>Answer questions</li>
+        <li><span class="lm" style="background:rgba(15,15,18,0.2);"></span>Summarize text</li>
+        <li><span class="lm" style="background:rgba(15,15,18,0.2);"></span>Write messages</li>
+        <li><span class="lx">✗</span><span class="lg">Durable context</span></li>
+        <li><span class="lx">✗</span><span class="lg">Proactive follow-up</span></li>
+      </ul>
+    </div>
+    <div class="sc">
+      <h4>What Enterprise Work Requires</h4>
+      <ul>
+        <li><span class="lm" style="background:var(--dot-g);"></span>Remember what must happen next</li>
+        <li><span class="lm" style="background:var(--dot-g);"></span>Return at the right time</li>
+        <li><span class="lm" style="background:var(--dot-g);"></span>Keep context across threads</li>
+        <li><span class="lm" style="background:var(--dot-g);"></span>Distinguish safe vs risky actions</li>
+        <li><span class="lm" style="background:var(--dot-g);"></span>Recover cleanly from failure</li>
+      </ul>
+    </div>
+  </div>
+  <p class="s-body" style="color:var(--soft);">AgentFactory is built for that missing layer.</p>
+
+  <!-- 03 -->
+  <div class="divider"><div class="div-line"></div><span class="div-num">03</span><div class="div-line"></div></div>
+  <h2 class="s-title">What AgentFactory Does</h2>
+  <p class="s-body">AgentFactory provides the operational structure around AI so that intelligent behavior can happen safely and repeatedly inside a real business process.</p>
+  <ul class="cap-list">
+    <li><div class="cap-d" style="background:var(--dot-b);"></div><span class="cap-n">01</span><div class="cap-c"><h4>Receive &amp; Interpret</h4><p>Ingest requests across channels and understand intent with model-level precision, even when inputs are ambiguous or natural language.</p></div></li>
+    <li><div class="cap-d" style="background:var(--dot-p);"></div><span class="cap-n">02</span><div class="cap-c"><h4>Resolve Context</h4><p>Identify gaps, ask one focused question, and resume the workflow when the answer arrives — rather than guessing or stalling.</p></div></li>
+    <li><div class="cap-d" style="background:var(--dot-g);"></div><span class="cap-n">03</span><div class="cap-c"><h4>Schedule &amp; Wait</h4><p>Trigger future work, reminders, and escalation paths at precisely the right time — across hours, days, or weeks.</p></div></li>
+    <li><div class="cap-d" style="background:var(--dot-y);"></div><span class="cap-n">04</span><div class="cap-c"><h4>Coordinate Action</h4><p>Fan out a single signal into many connected outcomes across systems and people, keeping all actions linked rather than isolated.</p></div></li>
+    <li><div class="cap-d" style="background:var(--dot-pk);"></div><span class="cap-n">05</span><div class="cap-c"><h4>Preserve Records</h4><p>Maintain a durable, inspectable trail of every decision, action, failure, and handoff — always explainable.</p></div></li>
+    <li><div class="cap-d" style="background:var(--dot-r);"></div><span class="cap-n">06</span><div class="cap-c"><h4>Safe Autonomy</h4><p>Act when it is safe, ask when it is not, wait when it should, and escalate when it must — controlled autonomy, not reckless automation.</p></div></li>
+  </ul>
+
+  <!-- 04 -->
+  <div class="divider"><div class="div-line"></div><span class="div-num">04</span><div class="div-line"></div></div>
+  <h2 class="s-title">The Big Difference</h2>
+  <p class="s-body">Most AI products are designed to answer. AgentFactory is designed to execute. That does not mean it replaces people — it operates as a disciplined execution layer between people, models, tools, and business systems.</p>
+  <div class="band">
+    <p>Enterprise environments are not just about intelligence. They are about reliability. The question is not only "Can the model figure this out?" — it is "Will the system still handle this correctly tomorrow?"</p>
+  </div>
+  <p class="s-body">AgentFactory is a strong fit for enterprise because it is built around those concerns: durable continuity, multi-step execution, proactive behaviour, real system connections, and explainable, recoverable actions.</p>
+
+  <!-- 05 -->
+  <div class="divider"><div class="div-line"></div><span class="div-num">05</span><div class="div-line"></div></div>
+  <h2 class="s-title">The "Wow" Factors</h2>
+  <p class="s-body">These are the qualities that tend to stand out once you understand what AgentFactory is actually doing.</p>
+  <div class="wow-grid">
+    <div class="wc"><div class="wc-dot" style="background:var(--dot-b);"></div><h4>Work That Stays Alive</h4><p>A request today can create a task now, trigger a reminder in five hours, and escalate next week if the work is still stalled.</p></div>
+    <div class="wc"><div class="wc-dot" style="background:var(--dot-p);"></div><h4>One Signal → Many Outcomes</h4><p>A single meeting transcript can produce a summary, task, deadline watch, follow-up request, and stakeholder update — all connected.</p></div>
+    <div class="wc"><div class="wc-dot" style="background:var(--dot-g);"></div><h4>Graceful Under Ambiguity</h4><p>Identifies what is unclear, asks one focused question, and resumes when the answer arrives. That feels like a competent operator.</p></div>
+    <div class="wc"><div class="wc-dot" style="background:var(--dot-y);"></div><h4>Proactive by Design</h4><p>Notices stale updates, missed deadlines, and unresolved blockers — then initiates the right next step according to policy.</p></div>
+    <div class="wc"><div class="wc-dot" style="background:var(--dot-pk);"></div><h4>Context-Aware Everywhere</h4><p>Runs the same operational workflow across email, chat, and internal channels without forcing people to restate context constantly.</p></div>
+    <div class="wc"><div class="wc-dot" style="background:var(--dot-r);"></div><h4>Controlled Autonomy</h4><p>Act when safe. Ask when not. Escalate when it must. This balance is exactly what enterprises need from AI systems.</p></div>
+  </div>
+
+  <!-- 06 -->
+  <div class="divider"><div class="div-line"></div><span class="div-num">06</span><div class="div-line"></div></div>
+  <h2 class="s-title">Enterprise Patterns</h2>
+  <p class="s-body">Where AgentFactory is especially compelling.</p>
+  <div class="ptiles">
+    <div class="ptile">
+      <div class="pt-head"><div style="width:8px;height:8px;border-radius:50%;background:var(--dot-b);flex-shrink:0;"></div><span>Project Management</span></div>
+      <ul><li>Capture tasks from meetings &amp; chat</li><li>Follow up on overdue work</li><li>Surface risk before deadlines slip</li><li>Send leadership digests</li></ul>
+    </div>
+    <div class="ptile">
+      <div class="pt-head"><div style="width:8px;height:8px;border-radius:50%;background:var(--dot-p);flex-shrink:0;"></div><span>Operations &amp; Service</span></div>
+      <ul><li>Track action items from incidents</li><li>Schedule rechecks automatically</li><li>Escalate unresolved blockers</li><li>Maintain long-running threads</li></ul>
+    </div>
+    <div class="ptile">
+      <div class="pt-head"><div style="width:8px;height:8px;border-radius:50%;background:var(--dot-g);flex-shrink:0;"></div><span>Partner &amp; Customer</span></div>
+      <ul><li>Durable follow-up loops</li><li>Thread state across channels</li><li>Ask for missing information</li><li>Prevent commitments being lost</li></ul>
+    </div>
+    <div class="ptile">
+      <div class="pt-head"><div style="width:8px;height:8px;border-radius:50%;background:var(--dot-y);flex-shrink:0;"></div><span>Executive Support</span></div>
+      <ul><li>Translate operations into summaries</li><li>Highlight risks and obligations</li><li>Trail from conversation to status</li><li>Daily digests &amp; briefings</li></ul>
+    </div>
+  </div>
+
+  <!-- 07 -->
+  <div class="divider"><div class="div-line"></div><span class="div-num">07</span><div class="div-line"></div></div>
+  <h2 class="s-title">Why This Matters Now</h2>
+  <p class="s-body">AI models are becoming more capable very quickly. That does not remove the need for workflow structure — it increases the need for it. As models gain the ability to infer more, act more, and initiate more, organisations need a stronger runtime layer around them.</p>
+  <p class="s-body">Without that layer, enterprises risk impressive demos but inconsistent operations, weak governance, and brittle follow-through. With AgentFactory, they get intelligent workflows, durable execution, and explainable autonomy.</p>
+  <div class="pq" style="margin-top:48px;">
+    <p>From AI as conversation<br/>to AI as execution.</p>
+    <div class="pq-bar" style="background:var(--dot-r);"></div>
+  </div>
+
+  <!-- CLOSING -->
+  <div class="closing">
+    <h2>Enterprise-Ready.<br/>Built to Execute.</h2>
+    <p>AgentFactory is not just a way to call a model. It is a way to build AI-powered workflow systems that understand, decide, coordinate, remember, and follow through.</p>
+    <div class="ctags">
+      <span class="ctag">Continuity</span>
+      <span class="ctag">Follow-Through</span>
+      <span class="ctag">Scheduling</span>
+      <span class="ctag">Safe Autonomy</span>
+      <span class="ctag">Cross-System</span>
+      <span class="ctag">Inspectable</span>
+    </div>
+  </div>
+
+  <!-- FOOTER -->
+  <div class="footer">
+    <img src="https://corticalfactory.com/mainlogo.png" alt="CorticalFactory"/>
+    <span>corticalfactory.com · AgentFactory</span>
+  </div>
+
+</div>
+</body>
+</html>

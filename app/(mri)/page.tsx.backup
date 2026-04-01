@@ -1,0 +1,1362 @@
+"use client"
+
+import { motion, Variants, useAnimation } from "framer-motion"
+import { useEffect, useState, useRef } from "react"
+import { Mail, MessageSquare, Calendar, Folder } from "lucide-react"
+
+import dynamic from "next/dynamic"
+
+// Dynamic import for MRI Viewer to avoid SSR issues with Three.js
+const MRIViewer = dynamic(() => import("@/components/3D/MRIViewer"), {
+  ssr: false,
+  loading: () => (
+    <div className="flex h-[500px] items-center justify-center">
+      <div className="h-8 w-8 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" />
+    </div>
+  ),
+})
+
+// ─── Dark theme hook ─────────────────────────────────────────────
+const useDarkTheme = () => {
+  const [isDark, setIsDark] = useState(false)
+
+  useEffect(() => {
+    const savedTheme = localStorage.getItem("theme")
+    const shouldBeDark = savedTheme === "dark"
+    setIsDark(shouldBeDark)
+    if (shouldBeDark) {
+      document.documentElement.classList.add("dark")
+    }
+  }, [])
+
+  const toggleTheme = () => {
+    const newIsDark = !isDark
+    setIsDark(newIsDark)
+    if (newIsDark) {
+      document.documentElement.classList.add("dark")
+      localStorage.setItem("theme", "dark")
+    } else {
+      document.documentElement.classList.remove("dark")
+      localStorage.setItem("theme", "light")
+    }
+  }
+
+  return { isDark, toggleTheme }
+}
+
+// ─── Theme toggle ────────────────────────────────────────────────
+const ThemeToggle = ({ isDark, toggle }: { isDark: boolean; toggle: () => void }) => (
+  <motion.button
+    onClick={toggle}
+    className="fixed right-6 top-6 z-30 rounded-full border border-gray-200 bg-white p-3 text-gray-800 shadow-lg transition-colors dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
+    whileHover={{ scale: 1.05 }}
+    whileTap={{ scale: 0.95 }}
+  >
+    <motion.svg
+      width="20"
+      height="20"
+      viewBox="0 0 20 20"
+      fill="none"
+      animate={{ rotate: isDark ? 180 : 0 }}
+      transition={{ duration: 0.3 }}
+    >
+      {isDark ? (
+        <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z" fill="currentColor" />
+      ) : (
+        <>
+          <circle cx="10" cy="10" r="4" fill="currentColor" />
+          <path
+            d="M10 2v2M10 16v2M2 10h2M16 10h2M4.93 4.93l1.41 1.41M13.66 13.66l1.41 1.41M4.93 15.07l1.41-1.41M13.66 6.34l1.41-1.41"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+          />
+        </>
+      )}
+    </motion.svg>
+  </motion.button>
+)
+
+// ─── Dot Matrix Animation ────────────────────────────────────────
+const IlluminatingDot = ({ isDark, index }: { isDark: boolean; index: number }) => {
+  const controls = useAnimation()
+  const [position, setPosition] = useState({ x: -100, y: -100 })
+
+  useEffect(() => {
+    let isActive = true
+    const runAnimation = async () => {
+      // Sequence initial spawn
+      await new Promise((resolve) => setTimeout(resolve, index * 300))
+
+      while (isActive) {
+        if (typeof window !== "undefined") {
+          const maxX = Math.floor(window.innerWidth / 24)
+          const maxY = Math.floor(window.innerHeight / 24)
+          setPosition({
+            x: Math.floor(Math.random() * maxX) * 24 + 12,
+            y: Math.floor(Math.random() * maxY) * 24 + 12,
+          })
+        }
+
+        if (!isActive) break
+
+        await controls.start({
+          opacity: [0, 0.8, 0],
+          transition: { duration: 2 + Math.random() * 2, ease: "easeInOut" },
+        })
+
+        await new Promise((resolve) => setTimeout(resolve, 2000 + Math.random() * 5000))
+      }
+    }
+    runAnimation()
+    return () => {
+      isActive = false
+    }
+  }, [controls, index])
+
+  return (
+    <motion.div
+      animate={controls}
+      initial={{ opacity: 0 }}
+      className="absolute h-[2px] w-[2px] -translate-x-1/2 -translate-y-1/2 rounded-full"
+      style={{
+        left: position.x,
+        top: position.y,
+        background: isDark ? "#ffffff" : "#3b82f6",
+        boxShadow: isDark ? "0 0 6px 1px rgba(255,255,255,0.8)" : "0 0 6px 1px rgba(59,130,246,0.6)",
+      }}
+    />
+  )
+}
+
+const DotMatrixBackground = ({ isDark }: { isDark: boolean }) => {
+  const [dots] = useState(() => Array.from({ length: 30 }))
+  return (
+    <div className="absolute inset-0">
+      <div
+        className="absolute inset-0"
+        style={{
+          backgroundImage: `radial-gradient(circle, ${isDark ? "#4b5563" : "#d4d4d4"} 1px, transparent 1px)`,
+          backgroundSize: "24px 24px",
+          opacity: isDark ? 0.6 : 0.8,
+          maskImage: "radial-gradient(ellipse at center, black 40%, transparent 100%)",
+          WebkitMaskImage: "radial-gradient(ellipse at center, black 40%, transparent 100%)",
+        }}
+      />
+      <div
+        className="absolute inset-0 overflow-hidden"
+        style={{
+          maskImage: "radial-gradient(ellipse at center, black 40%, transparent 100%)",
+          WebkitMaskImage: "radial-gradient(ellipse at center, black 40%, transparent 100%)",
+        }}
+      >
+        {dots.map((_, i) => (
+          <IlluminatingDot key={i} index={i} isDark={isDark} />
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// ─── Background elements ─────────────────────────────────────────
+const GridIcon = ({ isDark }: { isDark: boolean }) => (
+  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" className={isDark ? "text-gray-600" : "text-gray-300"}>
+    <path d="M4 4H8V8H4V4Z" fill="currentColor" />
+    <path d="M10 4H14V8H10V4Z" fill="currentColor" />
+    <path d="M16 4H20V8H16V4Z" fill="currentColor" />
+    <path d="M4 10H8V14H4V10Z" fill="currentColor" />
+    <path d="M10 10H14V14H10V10Z" fill="currentColor" />
+    <path d="M16 10H20V14H16V10Z" fill="currentColor" />
+    <path d="M4 16H8V20H4V16Z" fill="currentColor" />
+    <path d="M10 16H14V20H10V16Z" fill="currentColor" />
+    <path d="M16 16H20V20H16V16Z" fill="currentColor" />
+  </svg>
+)
+
+// ─── Operational Blueprint Background ────────────────────────────
+// Replaces the generic neural network with a concept grounded in tracking
+// fragmented work signals into a coordinated execution layer.
+
+const BlueprintNode = ({
+  cx,
+  cy,
+  color,
+  isDark,
+  label,
+  delay = 0,
+}: {
+  cx: number
+  cy: number
+  color: string
+  isDark: boolean
+  label?: string
+  delay?: number
+}) => (
+  <motion.g initial={{ opacity: 0, scale: 0 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay, duration: 1 }}>
+    {/* Glow */}
+    <motion.circle
+      cx={cx}
+      cy={cy}
+      r="20"
+      fill={color}
+      initial={{ opacity: 0.1 }}
+      animate={{ opacity: [0.1, 0.3, 0.1], r: [20, 30, 20] }}
+      transition={{ duration: 4, repeat: Infinity, delay: delay + 0.5 }}
+    />
+    {/* Inner node */}
+    <circle cx={cx} cy={cy} r="6" fill={isDark ? "#111827" : "#ffffff"} stroke={color} strokeWidth="3" />
+
+    {label && (
+      <text
+        x={cx}
+        y={cy - 25}
+        textAnchor="middle"
+        className={`font-syne text-[10px] font-bold uppercase tracking-wider ${
+          isDark ? "fill-gray-500" : "fill-gray-400"
+        }`}
+      >
+        {label}
+      </text>
+    )}
+  </motion.g>
+)
+
+const SignalPath = ({ d, color, delay = 0 }: { d: string; color: string; delay?: number }) => (
+  <>
+    {/* Base faint path */}
+    <path
+      d={d}
+      fill="none"
+      stroke={color}
+      strokeWidth="1"
+      strokeOpacity="0.2"
+      className="stroke-dasharray-4"
+      strokeDasharray="4 4"
+    />
+    {/* Animated signal pulse */}
+    <motion.path
+      d={d}
+      fill="none"
+      stroke={color}
+      strokeWidth="2"
+      initial={{ pathLength: 0, opacity: 0 }}
+      animate={{ pathLength: [0, 1], opacity: [0, 1, 0] }}
+      transition={{ duration: 3, repeat: Infinity, delay, ease: "easeInOut" }}
+    />
+  </>
+)
+
+const OperationalBlueprintBackground = ({ isDark, colors }: { isDark: boolean; colors: any }) => {
+  return (
+    <div className="pointer-events-none absolute inset-0 overflow-hidden opacity-60">
+      {/* SVG spans full width and height of its container */}
+      <svg className="absolute inset-0 h-full w-full" viewBox="-400 180 1650 900" preserveAspectRatio="xMidYMin slice">
+        {/* Mobile Layout (Tight cropping adjustment) */}
+        <g className="md:hidden">
+          {/* Email Signal */}
+          <SignalPath d="M 100 250 L 260 250 C 300 250, 320 400, 350 400" color={colors.blue} delay={0} />
+          <BlueprintNode cx={260} cy={250} color={colors.blue} isDark={isDark} label="EMAIL" delay={0.2} />
+
+          {/* Slack/Chat Signal */}
+          <SignalPath d="M 100 350 L 240 350 C 300 350, 320 400, 350 400" color={colors.purple} delay={1.2} />
+          <BlueprintNode cx={240} cy={350} color={colors.purple} isDark={isDark} label="CHAT" delay={0.5} />
+
+          {/* Meetings Signal */}
+          <SignalPath d="M 100 500 L 230 500 C 300 500, 320 400, 350 400" color={colors.emerald} delay={0.8} />
+          <BlueprintNode cx={230} cy={500} color={colors.emerald} isDark={isDark} label="MEETING" delay={0.8} />
+
+          {/* Task Created */}
+          <SignalPath d="M 500 400 C 530 400, 550 250, 590 250 L 750 250" color={colors.amber} delay={2.0} />
+          <BlueprintNode cx={590} cy={250} color={colors.amber} isDark={isDark} label="TASK SYNC" delay={1.5} />
+
+          {/* Follow-up Scheduled */}
+          <SignalPath d="M 500 400 C 530 400, 550 550, 610 550 L 750 550" color={colors.pink} delay={2.5} />
+          <BlueprintNode cx={610} cy={550} color={colors.pink} isDark={isDark} label="FOLLOW-UP" delay={1.8} />
+        </g>
+
+        {/* Desktop Layout (Wide spacious layout) */}
+        <g className="hidden md:block">
+          {/* Email Signal */}
+          <SignalPath d="M -800 250 L -150 250 C 50 250, 150 400, 350 400" color={colors.blue} delay={0} />
+          <BlueprintNode cx={-150} cy={250} color={colors.blue} isDark={isDark} label="EMAIL" delay={0.2} />
+
+          {/* Slack/Chat Signal */}
+          <SignalPath d="M -800 350 L -130 350 C 50 350, 150 400, 350 400" color={colors.purple} delay={1.2} />
+          <BlueprintNode cx={-130} cy={350} color={colors.purple} isDark={isDark} label="CHAT" delay={0.5} />
+
+          {/* Meetings Signal */}
+          <SignalPath d="M -800 500 L -160 500 C 50 500, 150 400, 350 400" color={colors.emerald} delay={0.8} />
+          <BlueprintNode cx={-160} cy={500} color={colors.emerald} isDark={isDark} label="MEETING" delay={0.8} />
+
+          {/* Task Created */}
+          <SignalPath d="M 500 400 C 700 400, 800 250, 1000 250 L 1600 250" color={colors.amber} delay={2.0} />
+          <BlueprintNode cx={1000} cy={250} color={colors.amber} isDark={isDark} label="TASK SYNC" delay={1.5} />
+
+          {/* Follow-up Scheduled */}
+          <SignalPath d="M 500 400 C 700 400, 800 550, 1030 550 L 1600 550" color={colors.pink} delay={2.5} />
+          <BlueprintNode cx={1030} cy={550} color={colors.pink} isDark={isDark} label="FOLLOW-UP" delay={1.8} />
+        </g>
+
+        {/* Center: The Coordinated Execution Trunk (Shared) */}
+        <motion.path
+          d="M 350 400 L 500 400"
+          fill="none"
+          stroke={isDark ? "#4b5563" : "#9ca3af"}
+          strokeWidth="4"
+          initial={{ pathLength: 0 }}
+          animate={{ pathLength: 1 }}
+          transition={{ duration: 1.5, delay: 1 }}
+        />
+
+        {/* Animated flow across the trunk */}
+        <motion.path
+          d="M 350 400 L 500 400"
+          fill="none"
+          stroke={colors.blue}
+          strokeWidth="4"
+          initial={{ pathLength: 0, opacity: 0 }}
+          animate={{ pathLength: [0, 1], opacity: [0, 1, 0] }}
+          transition={{ duration: 2, repeat: Infinity, delay: 1.5 }}
+        />
+
+        {/* Core Processing Node */}
+        <motion.g
+          initial={{ opacity: 0, scale: 0 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ delay: 1, duration: 1, type: "spring" }}
+        >
+          {/* Pulse ring */}
+          <motion.circle
+            cx={425}
+            cy={400}
+            r="35"
+            fill="none"
+            stroke={colors.blue}
+            strokeWidth="1"
+            initial={{ scale: 1, opacity: 0.5 }}
+            animate={{ scale: 2, opacity: 0 }}
+            transition={{ duration: 2, repeat: Infinity }}
+          />
+          {/* Hexagon core */}
+          <polygon
+            points="425,380 442,390 442,410 425,420 408,410 408,390"
+            fill={isDark ? "#1f2937" : "#ffffff"}
+            stroke={colors.blue}
+            strokeWidth="2"
+          />
+          <text
+            x={425}
+            y={370}
+            textAnchor="middle"
+            className={`font-syne text-[10px] font-bold uppercase tracking-[0.2em] ${
+              isDark ? "fill-blue-400" : "fill-blue-600"
+            }`}
+          >
+            CORTIFACT
+          </text>
+        </motion.g>
+
+        {/* Lower decorative horizontal lines */}
+        <path
+          d="M -800 800 L 1600 800"
+          stroke={isDark ? "#374151" : "#e5e5e5"}
+          strokeWidth="1"
+          strokeDasharray="10 10"
+        />
+
+        {/* Mobile Memory Node */}
+        <g className="md:hidden">
+          <BlueprintNode cx={425} cy={800} color={colors.emerald} isDark={isDark} label="MEMORY" delay={3} />
+          <SignalPath d="M 425 800 L 800 800" color={colors.emerald} delay={3.5} />
+        </g>
+
+        {/* Desktop Memory Node */}
+        <g className="hidden md:block">
+          <BlueprintNode cx={300} cy={800} color={colors.emerald} isDark={isDark} label="MEMORY" delay={3} />
+          <SignalPath d="M 300 800 L 1600 800" color={colors.emerald} delay={3.5} />
+        </g>
+      </svg>
+    </div>
+  )
+}
+
+// ─── Reusable section components ─────────────────────────────────
+const ScrollIlluminatedText = ({
+  children,
+  isDark,
+  className = "",
+}: {
+  children: React.ReactNode
+  isDark: boolean
+  className?: string
+}) => {
+  return (
+    <motion.p
+      whileInView={{
+        color: isDark ? "#ffffff" : "#0D0D0D",
+        textShadow: isDark ? "0 0 12px rgba(255,255,255,0.4)" : "0 0 12px rgba(0,0,0,0.15)",
+      }}
+      viewport={{ margin: "-25% 0px -25% 0px", amount: "some", once: false }}
+      transition={{ duration: 0.6, ease: "easeInOut" }}
+      className={`${className} ${isDark ? "text-gray-400" : "text-gray-600"}`}
+    >
+      {children}
+    </motion.p>
+  )
+}
+
+const Divider = ({ num, isDark }: { num: string; isDark: boolean }) => (
+  <div className="divider my-16 flex items-center gap-4">
+    <div className={`h-px flex-1 ${isDark ? "bg-gray-800" : "bg-gray-200"}`} />
+    <span className={`font-syne text-xs font-bold tracking-[0.18em] ${isDark ? "text-gray-600" : "text-gray-400"}`}>
+      {num}
+    </span>
+    <div className={`h-px flex-1 ${isDark ? "bg-gray-800" : "bg-gray-200"}`} />
+  </div>
+)
+
+const Pill = ({ children, dotColor, isDark }: { children: React.ReactNode; dotColor: string; isDark: boolean }) => (
+  <span
+    className={`flex items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-xs font-medium uppercase tracking-wide ${
+      isDark ? "border-gray-800 bg-gray-900/40 text-gray-400" : "border-gray-200 bg-white/60 text-gray-500"
+    }`}
+  >
+    <span className="h-1.5 w-1.5 rounded-full" style={{ background: dotColor }} />
+    {children}
+  </span>
+)
+
+const PullQuote = ({
+  children,
+  barColor,
+  isDark,
+}: {
+  children: React.ReactNode
+  barColor: string
+  isDark: boolean
+}) => (
+  <div className="my-12 text-center">
+    <p
+      className={`font-syne text-xl font-bold leading-tight tracking-tight md:text-2xl ${
+        isDark ? "text-gray-100" : "text-gray-900"
+      }`}
+    >
+      {children}
+    </p>
+    <div className="mx-auto mt-4 h-0.5 w-8" style={{ background: barColor }} />
+  </div>
+)
+
+const DotRow = ({ isDark }: { isDark: boolean }) => (
+  <div className="my-6 flex items-center gap-2">
+    <span className="h-1.5 w-1.5 rounded-full bg-blue-500" />
+    <div className={`h-px flex-1 ${isDark ? "bg-gray-800" : "bg-gray-200"}`} />
+    <span className="h-1.5 w-1.5 rounded-full bg-purple-500" />
+    <div className={`h-px flex-1 ${isDark ? "bg-gray-800" : "bg-gray-200"}`} />
+    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+    <div className={`h-px flex-1 ${isDark ? "bg-gray-800" : "bg-gray-200"}`} />
+    <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+  </div>
+)
+
+const Band = ({ children, isDark }: { children: React.ReactNode; isDark: boolean }) => (
+  <div
+    className={`my-10 border-l-[3px] p-6 ${
+      isDark ? "border-gray-800 border-l-gray-100 bg-gray-900" : "border-gray-200 border-l-gray-900 bg-gray-50"
+    }`}
+  >
+    <p
+      className={`font-syne text-base font-semibold leading-relaxed tracking-tight ${
+        isDark ? "text-gray-100" : "text-gray-900"
+      }`}
+    >
+      {children}
+    </p>
+  </div>
+)
+
+const CapListItem = ({
+  dotColor,
+  number,
+  title,
+  children,
+  isDark,
+}: {
+  dotColor: string
+  number: string
+  title: string
+  children: React.ReactNode
+  isDark: boolean
+}) => (
+  <li
+    className={`flex items-start gap-5 py-6 first:border-t ${isDark ? "border-gray-800" : "border-gray-100"} ${
+      isDark ? "" : "border-b"
+    }`}
+  >
+    <div className="mt-1.5 h-2 w-2 flex-shrink-0 rounded-full" style={{ background: dotColor }} />
+    <span className={`font-syne w-7 text-xs font-bold tracking-wide ${isDark ? "text-gray-600" : "text-gray-400"}`}>
+      {number}
+    </span>
+    <div>
+      <h4 className={`font-syne text-base font-bold ${isDark ? "text-gray-100" : "text-gray-900"}`}>{title}</h4>
+      <p className={`text-sm font-light ${isDark ? "text-gray-400" : "text-gray-500"}`}>{children}</p>
+    </div>
+  </li>
+)
+
+const WowCard = ({
+  dotColor,
+  title,
+  children,
+  isDark,
+}: {
+  dotColor: string
+  title: string
+  children: React.ReactNode
+  isDark: boolean
+}) => (
+  <div className={`p-6 ${isDark ? "border border-gray-800 bg-gray-900/50" : "border border-gray-200 bg-white"}`}>
+    <div className="mb-3 h-2 w-2 rounded-full" style={{ background: dotColor }} />
+    <h4 className={`font-syne text-sm font-bold ${isDark ? "text-gray-100" : "text-gray-900"}`}>{title}</h4>
+    <p className={`mt-1 text-xs font-light leading-relaxed ${isDark ? "text-gray-400" : "text-gray-500"}`}>
+      {children}
+    </p>
+  </div>
+)
+
+const PatternTile = ({
+  dotColor,
+  title,
+  items,
+  isDark,
+}: {
+  dotColor: string
+  title: string
+  items: string[]
+  isDark: boolean
+}) => (
+  <div
+    className={`rounded-sm p-5 ${isDark ? "border border-gray-800 bg-gray-900" : "border border-gray-200 bg-gray-50"}`}
+  >
+    <div className="mb-2 flex items-center gap-2">
+      <div className="h-2 w-2 rounded-full" style={{ background: dotColor }} />
+      <span className={`font-syne text-xs font-bold ${isDark ? "text-gray-200" : "text-gray-800"}`}>{title}</span>
+    </div>
+    <ul className="space-y-1">
+      {items.map((item, idx) => (
+        <li
+          key={idx}
+          className={`relative pl-3 text-xs font-light ${
+            isDark ? "text-gray-400" : "text-gray-500"
+          } before:absolute before:left-0 before:content-['–']`}
+        >
+          {item}
+        </li>
+      ))}
+    </ul>
+  </div>
+)
+
+// ─── Signal flow visual ──────────────────────────────────────────
+const SignalFlowDiagram = ({ isDark }: { isDark: boolean }) => {
+  const signals = [
+    { label: "Email", icon: <Mail size={16} strokeWidth={2.5} />, color: "#3b82f6" },
+    { label: "Chat", icon: <MessageSquare size={16} strokeWidth={2.5} />, color: "#8b5cf6" },
+    { label: "Meetings", icon: <Calendar size={16} strokeWidth={2.5} />, color: "#10b981" },
+    { label: "Files", icon: <Folder size={16} strokeWidth={2.5} />, color: "#f59e0b" },
+  ]
+
+  return (
+    <div className="my-12 flex flex-col items-center gap-6">
+      {/* Signals row */}
+      <div className="flex flex-wrap items-center justify-center gap-3">
+        {signals.map((s, i) => (
+          <motion.div
+            key={s.label}
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ delay: i * 0.1, duration: 0.5 }}
+            className={`flex items-center gap-2 rounded-full border px-4 py-2 text-sm ${
+              isDark ? "border-gray-700 bg-gray-900/60 text-gray-300" : "border-gray-200 bg-white text-gray-600"
+            }`}
+          >
+            <span style={{ color: s.color }}>{s.icon}</span>
+            <span className="font-medium">{s.label}</span>
+          </motion.div>
+        ))}
+      </div>
+
+      {/* Arrow down */}
+      <motion.div
+        initial={{ opacity: 0, scaleY: 0 }}
+        whileInView={{ opacity: 1, scaleY: 1 }}
+        viewport={{ once: true }}
+        transition={{ delay: 0.4, duration: 0.5 }}
+        className="flex flex-col items-center gap-1"
+      >
+        <div
+          className={`h-12 w-px ${
+            isDark ? "bg-gradient-to-b from-gray-700 to-blue-500" : "bg-gradient-to-b from-gray-300 to-blue-500"
+          }`}
+        />
+        <svg width="12" height="8" viewBox="0 0 12 8" fill="none">
+          <path d="M1 1L6 6L11 1" stroke="#3b82f6" strokeWidth="2" strokeLinecap="round" />
+        </svg>
+      </motion.div>
+
+      {/* Cortifact center */}
+      <motion.div
+        initial={{ opacity: 0, scale: 0.8 }}
+        whileInView={{ opacity: 1, scale: 1 }}
+        viewport={{ once: true }}
+        transition={{ delay: 0.6, duration: 0.5 }}
+        className={`relative rounded-xl border-2 px-8 py-4 text-center ${
+          isDark ? "border-gray-700 bg-black/80" : "border-blue-500/30 bg-white"
+        }`}
+      >
+        <div className={`absolute -inset-1 rounded-xl blur-lg ${isDark ? "bg-white/5" : "bg-blue-500/5"}`} />
+        <p
+          className={`font-syne relative text-sm font-bold uppercase tracking-[0.15em] ${
+            isDark ? "text-gray-300" : "text-blue-600"
+          }`}
+        >
+          Cortifact
+        </p>
+        <p className={`relative mt-1 text-xs ${isDark ? "text-gray-400" : "text-gray-500"}`}>
+          Operational Intelligence Layer
+        </p>
+      </motion.div>
+
+      {/* Arrow down */}
+      <motion.div
+        initial={{ opacity: 0, scaleY: 0 }}
+        whileInView={{ opacity: 1, scaleY: 1 }}
+        viewport={{ once: true }}
+        transition={{ delay: 0.8, duration: 0.5 }}
+        className="flex flex-col items-center gap-1"
+      >
+        <div
+          className={`h-12 w-px ${
+            isDark ? "bg-gradient-to-b from-blue-500 to-emerald-500" : "bg-gradient-to-b from-blue-500 to-emerald-500"
+          }`}
+        />
+        <svg width="12" height="8" viewBox="0 0 12 8" fill="none">
+          <path d="M1 1L6 6L11 1" stroke="#10b981" strokeWidth="2" strokeLinecap="round" />
+        </svg>
+      </motion.div>
+
+      {/* Outcome */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        viewport={{ once: true }}
+        transition={{ delay: 1, duration: 0.5 }}
+        className={`rounded-full border px-6 py-2.5 text-sm font-medium ${
+          isDark
+            ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400"
+            : "border-emerald-500/30 bg-emerald-50 text-emerald-700"
+        }`}
+      >
+        Coordinated Execution →
+      </motion.div>
+    </div>
+  )
+}
+
+// ═════════════════════════════════════════════════════════════════
+// MAIN PAGE
+// ═════════════════════════════════════════════════════════════════
+export default function CortifactLanding() {
+  const [isWaitlistModalOpen, setIsWaitlistModalOpen] = useState(false)
+  const { isDark, toggleTheme } = useDarkTheme()
+
+  const fadeUp: Variants = {
+    hidden: { opacity: 0, y: 15 },
+    visible: { opacity: 1, y: 0, transition: { duration: 0.7, ease: "easeOut" } },
+  }
+
+  const colors = {
+    blue: "#3b82f6",
+    cyan: "#06b6d4",
+    purple: "#8b5cf6",
+    pink: "#ec4899",
+    amber: "#f59e0b",
+    emerald: "#10b981",
+  }
+
+  return (
+    <main
+      className={`relative min-h-screen w-full overflow-x-hidden transition-colors ${isDark ? "bg-black" : "bg-white"}`}
+    >
+      {/* ── Background pattern ─────────────────────────────────── */}
+      <div className="pointer-events-none fixed inset-0 z-0">
+        <DotMatrixBackground isDark={isDark} />
+
+        {/* Soft background color blobs */}
+        <motion.div
+          className="absolute hidden h-[600px] w-[600px] rounded-full opacity-10 mix-blend-screen blur-[100px] md:block"
+          style={{ background: colors.blue, left: "-10%", top: "-10%" }}
+          animate={{ x: [0, 50, 0], y: [0, 30, 0] }}
+          transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
+        />
+        <motion.div
+          className="absolute hidden h-[600px] w-[600px] rounded-full opacity-10 mix-blend-screen blur-[100px] md:block"
+          style={{ background: colors.amber, right: "-10%", top: "-5%" }}
+          animate={{ x: [0, -50, 0], y: [0, 50, 0] }}
+          transition={{ duration: 30, repeat: Infinity, ease: "linear" }}
+        />
+
+        {/* Ambient spinning geometric elements */}
+        <motion.div
+          className="absolute right-20 top-20 opacity-40"
+          animate={{ rotate: 360 }}
+          transition={{ duration: 160, repeat: Infinity, ease: "linear" }}
+        >
+          <GridIcon isDark={isDark} />
+        </motion.div>
+
+        {/* Dynamic Operational Blueprint Background showing execution flow */}
+        <OperationalBlueprintBackground isDark={isDark} colors={colors} />
+      </div>
+
+      {/* Background container ends */}
+
+      {/* ══════════════════════════════════════════════════════════
+           MAIN CONTENT
+           ══════════════════════════════════════════════════════════ */}
+      <div className="relative z-20 mx-auto max-w-3xl px-5 pb-32 pt-12 md:px-12 md:pt-20">
+        {/* ── SECTION 1: HERO ───────────────────────────────────── */}
+        <div className="flex min-h-screen flex-col items-center justify-center pb-20 pt-10 text-center">
+          <motion.div variants={fadeUp} initial="hidden" animate="visible" className="mb-8">
+            <div className="flex justify-center">
+              <img
+                src={isDark ? "/cortifact-dark.png" : "/cortifact-light.png"}
+                alt="Cortifact"
+                className="h-14 w-auto"
+              />
+            </div>
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.2, duration: 0.6 }}
+            className={`mb-6 flex items-center justify-center gap-2 text-xs font-medium uppercase tracking-[0.14em] ${
+              isDark ? "text-gray-500" : "text-gray-400"
+            }`}
+          >
+            <span className="h-1.5 w-1.5 rounded-full bg-blue-500" />
+            Operational Intelligence Platform
+          </motion.div>
+
+          <motion.h1
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3, duration: 0.7 }}
+            className={`text-3xl font-semibold leading-tight  md:text-4xl ${
+              isDark ? "text-gray-100" : "text-gray-900"
+            }`}
+          >
+            Turn Fragmented Work
+            <span className={`block font-bold ${isDark ? "text-gray-100" : "text-gray-900"}`}>
+              Into Coordinated Execution
+            </span>
+          </motion.h1>
+
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.5, duration: 0.7 }}
+          >
+            <ScrollIlluminatedText
+              isDark={isDark}
+              className="mx-auto mt-6 max-w-lg text-base font-light leading-relaxed"
+            >
+              Cortifact helps organizations connect messages, files, follow-up, and memory so teams can execute with
+              more clarity and less friction.
+            </ScrollIlluminatedText>
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.6, duration: 0.5 }}
+            className="mt-8 flex flex-wrap justify-center gap-2"
+          >
+            <Pill dotColor={colors.blue} isDark={isDark}>
+              Operational Intelligence
+            </Pill>
+            <Pill dotColor={colors.emerald} isDark={isDark}>
+              Coordinated Execution
+            </Pill>
+            <Pill dotColor={colors.purple} isDark={isDark}>
+              Durable Memory
+            </Pill>
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.8, duration: 0.5 }}
+            className="mt-10"
+          >
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => setIsWaitlistModalOpen(true)}
+              className={`group inline-flex h-12 items-center justify-center gap-2 rounded-full px-8 py-3 text-sm font-medium shadow-sm transition-all hover:shadow-lg ${
+                isDark ? "bg-white text-black hover:bg-gray-200" : "bg-gray-900 text-white hover:bg-gray-800"
+              }`}
+            >
+              Request Early Access
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 16 16"
+                fill="none"
+                className="transition-transform group-hover:translate-x-0.5"
+              >
+                <path
+                  d="M8 1L15 8L8 15M15 8H1"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </motion.button>
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 1, duration: 0.5 }}
+            className={`mt-14 flex items-center gap-3 text-[11px] uppercase tracking-[0.14em] ${
+              isDark ? "text-gray-700" : "text-gray-400"
+            }`}
+          >
+            <div className={`h-px w-7 ${isDark ? "bg-gray-800" : "bg-gray-300"}`} />
+            cortifact
+            <div className={`h-px w-7 ${isDark ? "bg-gray-800" : "bg-gray-300"}`} />
+          </motion.div>
+        </div>
+
+        {/* ── MRI 3D VIEWER SECTION ─────────────────────────────── */}
+        <motion.div
+          initial={{ opacity: 0, y: 30 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.8 }}
+          className="my-16"
+        >
+          <div className={`mb-6 text-center`}>
+            <h2
+              className={`font-syne text-2xl font-bold tracking-tight md:text-3xl ${
+                isDark ? "text-gray-100" : "text-gray-900"
+              }`}
+            >
+              Explore MRI Scenes in 3D
+            </h2>
+            <p className={`mt-2 text-sm ${isDark ? "text-gray-400" : "text-gray-500"}`}>
+              Interactive visualization with VR headset support
+            </p>
+          </div>
+          <div
+            className={`overflow-hidden rounded-2xl border ${
+              isDark ? "border-gray-800 bg-gray-900/30" : "border-gray-200 bg-white/50"
+            }`}
+          >
+            <MRIViewer isDark={isDark} />
+          </div>
+        </motion.div>
+
+        {/* ── SECTION CONTENT ───────────────────────────────────── */}
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2, duration: 0.8 }}>
+          {/* ── 01 · THE PROBLEM ──────────────────────────────────── */}
+          <Divider num="01" isDark={isDark} />
+
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6 }}
+          >
+            <h2 className={`font-syne text-3xl font-bold tracking-tight ${isDark ? "text-gray-100" : "text-gray-900"}`}>
+              Modern Work Is Fragmented
+            </h2>
+            <ScrollIlluminatedText isDark={isDark} className="mt-4 text-base font-light leading-relaxed">
+              Teams receive requests in email, chat, meetings, documents, and internal tools. Important details get
+              scattered across conversations. Follow-up lives in people's heads. Decisions disappear into threads. Tasks
+              get created too late — or with too little context.
+            </ScrollIlluminatedText>
+          </motion.div>
+
+          <DotRow isDark={isDark} />
+
+          {/* Split card: pain */}
+          <div
+            className={`my-8 grid grid-cols-1 gap-px overflow-hidden rounded-sm border md:grid-cols-2 ${
+              isDark ? "border-gray-800 bg-gray-800" : "border-gray-200 bg-gray-200"
+            }`}
+          >
+            <div className={`p-6 ${isDark ? "bg-black" : "bg-white"}`}>
+              <h4
+                className={`font-syne text-xs font-bold uppercase tracking-[0.15em] ${
+                  isDark ? "text-gray-500" : "text-gray-400"
+                }`}
+              >
+                Where Work Lives
+              </h4>
+              <ul className="mt-3 space-y-2">
+                {[
+                  "Inboxes & email",
+                  "Slack & chat threads",
+                  "Meetings & calls",
+                  "Task systems & boards",
+                  "Shared drives & docs",
+                  "Human memory",
+                ].map((item, i) => (
+                  <li
+                    key={i}
+                    className={`flex items-center gap-2 border-b py-1.5 text-sm font-light last:border-b-0 ${
+                      isDark ? "border-gray-800 text-gray-400" : "border-gray-100 text-gray-600"
+                    }`}
+                  >
+                    <span className={`h-1.5 w-1.5 rounded-full ${isDark ? "bg-gray-700" : "bg-gray-300"}`} />
+                    {item}
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div className={`p-6 ${isDark ? "bg-black" : "bg-white"}`}>
+              <h4
+                className={`font-syne text-xs font-bold uppercase tracking-[0.15em] ${
+                  isDark ? "text-gray-500" : "text-gray-400"
+                }`}
+              >
+                What Teams Experience
+              </h4>
+              <ul className="mt-3 space-y-2">
+                {[
+                  "Requests arrive without enough context",
+                  "Clarifying work is repeated constantly",
+                  "Action items get lost after meetings",
+                  "Follow-up happens too late or not at all",
+                  "Status becomes hard to trust",
+                  "Teams coordinate instead of executing",
+                ].map((item, i) => (
+                  <li
+                    key={i}
+                    className={`flex items-center gap-2 border-b py-1.5 text-sm font-light last:border-b-0 ${
+                      isDark ? "border-gray-800 text-gray-400" : "border-gray-100 text-gray-600"
+                    }`}
+                  >
+                    <span className="h-1.5 w-1.5 rounded-full bg-red-400/70" />
+                    {item}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+
+          <Band isDark={isDark}>
+            Most organizations don't have a "lack of tools" problem. They have a continuity problem.
+          </Band>
+
+          {/* ── 02 · WHAT CORTIFACT DOES ─────────────────────────── */}
+          <Divider num="02" isDark={isDark} />
+
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6 }}
+          >
+            <h2 className={`font-syne text-3xl font-bold tracking-tight ${isDark ? "text-gray-100" : "text-gray-900"}`}>
+              What Cortifact Does
+            </h2>
+            <ScrollIlluminatedText isDark={isDark} className="mt-4 text-base font-light leading-relaxed">
+              Cortifact is an operational intelligence platform. It doesn't ask companies to abandon the tools they
+              already use — it helps those tools work together more intelligently.
+            </ScrollIlluminatedText>
+          </motion.div>
+
+          <SignalFlowDiagram isDark={isDark} />
+
+          <div
+            className={`my-8 grid grid-cols-1 gap-px overflow-hidden rounded-sm border md:grid-cols-2 ${
+              isDark ? "border-gray-800 bg-gray-800" : "border-gray-200 bg-gray-200"
+            }`}
+          >
+            <WowCard dotColor={colors.blue} title="Receive Work" isDark={isDark}>
+              Capture signals from the places work already happens — email, chat, meetings, and internal tools. No new
+              habits required.
+            </WowCard>
+            <WowCard dotColor={colors.purple} title="Connect Context" isDark={isDark}>
+              Link conversations, files, tasks, and history together. Stop forcing teams to reconstruct what happened
+              before.
+            </WowCard>
+            <WowCard dotColor={colors.emerald} title="Remember What Matters" isDark={isDark}>
+              Build organizational memory that compounds over time. What happened before informs what happens next.
+            </WowCard>
+            <WowCard dotColor={colors.amber} title="Move Work Forward" isDark={isDark}>
+              Route action to the right people, surface follow-ups, strengthen handoffs — with less manual coordination.
+            </WowCard>
+          </div>
+
+          <PullQuote barColor={colors.blue} isDark={isDark}>
+            Cortifact turns fragmented work signals into coordinated execution.
+          </PullQuote>
+
+          {/* ── 03 · WHY IT MATTERS ──────────────────────────────── */}
+          <Divider num="03" isDark={isDark} />
+
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6 }}
+          >
+            <h2
+              className={`font-syne text-3xl font-bold tracking-tight md:text-4xl ${
+                isDark ? "text-gray-100" : "text-gray-900"
+              }`}
+            >
+              Why It Matters
+            </h2>
+            <ScrollIlluminatedText isDark={isDark} className="mt-4 text-base font-light leading-relaxed">
+              The product promise is not "more AI." It is less friction, less fragmentation, fewer dropped balls,
+              stronger continuity, and more confident execution.
+            </ScrollIlluminatedText>
+          </motion.div>
+
+          <ul className="mt-6">
+            <CapListItem dotColor={colors.blue} number="01" title="Less Lost Context" isDark={isDark}>
+              Conversations, files, tasks, and history stay connected instead of scattered across a dozen different
+              tools and threads.
+            </CapListItem>
+            <CapListItem dotColor={colors.purple} number="02" title="Better Follow-Through" isDark={isDark}>
+              Important actions are less likely to disappear after meetings, chats, or incoming requests. Work stays
+              visible.
+            </CapListItem>
+            <CapListItem dotColor={colors.emerald} number="03" title="Stronger Execution Flow" isDark={isDark}>
+              Teams move from raw signals to structured action faster and with less manual cleanup or repeated
+              clarification.
+            </CapListItem>
+            <CapListItem dotColor={colors.amber} number="04" title="Better Organizational Memory" isDark={isDark}>
+              What happened before can inform what happens next, instead of forcing teams to keep rediscovering the same
+              context.
+            </CapListItem>
+            <CapListItem dotColor={colors.pink} number="05" title="A System That Grows" isDark={isDark}>
+              As more signals, actions, and outcomes move through the platform, Cortifact becomes a stronger operational
+              layer for the whole organization.
+            </CapListItem>
+          </ul>
+
+          {/* ── 04 · THE BLUEPRINT STORY ─────────────────────────── */}
+          <Divider num="04" isDark={isDark} />
+
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6 }}
+          >
+            <h2
+              className={`font-syne text-3xl font-bold tracking-tight md:text-4xl ${
+                isDark ? "text-gray-100" : "text-gray-900"
+              }`}
+            >
+              The Blueprint Story
+            </h2>
+            <ScrollIlluminatedText isDark={isDark} className="mt-4 text-base font-light leading-relaxed">
+              Cortifact is not a single fixed assistant. It is built around the idea of{" "}
+              <strong className={isDark ? "text-gray-200" : "text-gray-800"}>blueprints</strong> — packaged operational
+              roles that give the platform a clear identity, a clear operating style, and a clear set of workflows for a
+              particular domain of work.
+            </ScrollIlluminatedText>
+          </motion.div>
+
+          <Band isDark={isDark}>
+            Cortifact is not trying to be one generic AI layer that does everything vaguely. It's being built to support
+            distinct operational roles — starting with the first one.
+          </Band>
+
+          {/* PM Blueprint highlight */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6 }}
+            className={`relative my-8 overflow-hidden rounded-lg border-2 p-8 ${
+              isDark ? "border-gray-800 bg-black" : "border-blue-500/15 bg-blue-50"
+            }`}
+          >
+            <div
+              className={`absolute -right-6 -top-6 h-32 w-32 rounded-full blur-2xl ${
+                isDark ? "bg-white/5" : "bg-blue-500/5"
+              }`}
+            />
+            <div className="relative">
+              <div className="mb-4 flex items-center gap-3">
+                <div
+                  className={`flex h-10 w-10 items-center justify-center rounded-lg ${
+                    isDark ? "bg-gray-800" : "bg-blue-500/10"
+                  }`}
+                >
+                  <span className="text-lg">📋</span>
+                </div>
+                <div>
+                  <p
+                    className={`font-syne text-xs font-bold uppercase tracking-[0.15em] ${
+                      isDark ? "text-gray-400" : "text-blue-600"
+                    }`}
+                  >
+                    First Blueprint
+                  </p>
+                  <h3 className={`font-syne text-xl font-bold ${isDark ? "text-gray-100" : "text-gray-900"}`}>
+                    Project Manager
+                  </h3>
+                </div>
+              </div>
+              <ScrollIlluminatedText isDark={isDark} className="text-sm font-light leading-relaxed">
+                Project management sits at the center of coordination: work enters through messages and requests,
+                meetings generate actions, follow-up slips, risks need attention, and context drifts apart. The Project
+                Manager blueprint is our first clear expression of the Cortifact vision — helping the platform behave
+                less like a passive assistant and more like an active operational partner.
+              </ScrollIlluminatedText>
+              <ul className="mt-4 space-y-2">
+                {[
+                  "Capture work more clearly from conversations",
+                  "Keep context connected across threads and records",
+                  "Move actions forward after meetings",
+                  "Improve follow-up and reduce forgotten work",
+                  "Surface risks before they become problems",
+                ].map((item, i) => (
+                  <li
+                    key={i}
+                    className={`flex items-center gap-2 text-sm font-light ${
+                      isDark ? "text-gray-300" : "text-gray-700"
+                    }`}
+                  >
+                    <span className="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-blue-500" />
+                    {item}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </motion.div>
+
+          {/* Future blueprints */}
+          <ScrollIlluminatedText isDark={isDark} className="text-base font-light leading-relaxed">
+            More blueprints will follow. The platform is designed to grow into a broader blueprint-based operating
+            system for work.
+          </ScrollIlluminatedText>
+
+          <div className="my-6 grid grid-cols-1 gap-4 md:grid-cols-2">
+            <PatternTile
+              dotColor={colors.purple}
+              title="Customer & Service Ops"
+              items={["Support ticket orchestration", "SLA tracking & escalation", "Durable customer threads"]}
+              isDark={isDark}
+            />
+            <PatternTile
+              dotColor={colors.emerald}
+              title="People & Coordination"
+              items={["Onboarding workflows", "Team cadence management", "Cross-department handoffs"]}
+              isDark={isDark}
+            />
+            <PatternTile
+              dotColor={colors.amber}
+              title="Risk & Governance"
+              items={["Compliance tracking", "Audit trail continuity", "Policy-driven follow-up"]}
+              isDark={isDark}
+            />
+            <PatternTile
+              dotColor={colors.pink}
+              title="Revenue Operations"
+              items={["Deal pipeline continuity", "Stakeholder follow-through", "Forecast signal tracking"]}
+              isDark={isDark}
+            />
+          </div>
+
+          <PullQuote barColor={colors.purple} isDark={isDark}>
+            Start with a strong Project Manager blueprint. Grow into a platform for operational continuity across every
+            domain.
+          </PullQuote>
+
+          {/* ── 05 · WHY CORTIFACT FEELS DIFFERENT ────────────── */}
+          <Divider num="05" isDark={isDark} />
+
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6 }}
+          >
+            <h2
+              className={`font-syne text-3xl font-bold tracking-tight md:text-4xl ${
+                isDark ? "text-gray-100" : "text-gray-900"
+              }`}
+            >
+              Why Cortifact Feels Different
+            </h2>
+            <ScrollIlluminatedText isDark={isDark} className="mt-4 text-base font-light leading-relaxed">
+              Many products solve one slice of the problem: inbox automation, AI chat assistants, task boards, document
+              search. Cortifact sits in the space between those fragments — solving the actual operational problem of
+              how work moves from signal to action without losing continuity.
+            </ScrollIlluminatedText>
+          </motion.div>
+
+          <div
+            className={`my-8 grid grid-cols-1 gap-px overflow-hidden rounded-sm border md:grid-cols-3 ${
+              isDark ? "border-gray-800 bg-gray-800" : "border-gray-200 bg-gray-200"
+            }`}
+          >
+            <WowCard dotColor={colors.blue} title="Not a Feature" isDark={isDark}>
+              Cortifact is a coordination layer, not another point solution. It connects the spaces between your
+              existing tools.
+            </WowCard>
+            <WowCard dotColor={colors.purple} title="Not a Chatbot" isDark={isDark}>
+              It's a system for receiving, understanding, organizing, and following through on work without losing
+              context.
+            </WowCard>
+            <WowCard dotColor={colors.emerald} title="Not Just Search" isDark={isDark}>
+              It goes beyond finding information — it preserves continuity, strengthens follow-through, and builds
+              memory.
+            </WowCard>
+          </div>
+
+          <Band isDark={isDark}>
+            The question Cortifact answers is not "Can AI find this?" — it is "Can AI help this work actually get done
+            without pieces falling through the cracks?"
+          </Band>
+
+          {/* ── 06 · THE FUTURE ───────────────────────────────────── */}
+          <Divider num="06" isDark={isDark} />
+
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6 }}
+          >
+            <h2
+              className={`font-syne text-3xl font-bold tracking-tight md:text-4xl ${
+                isDark ? "text-gray-100" : "text-gray-900"
+              }`}
+            >
+              The Bigger Picture
+            </h2>
+            <ScrollIlluminatedText isDark={isDark} className="mt-4 text-base font-light leading-relaxed">
+              Cortifact is becoming an operating system for work continuity — where more of the organization's signals
+              can be understood, coordinated, and followed through with intelligence.
+            </ScrollIlluminatedText>
+            <ScrollIlluminatedText isDark={isDark} className="mt-4 text-base font-light leading-relaxed">
+              The platform already has the foundation for memory-backed, thread-aware orchestration. The Project Manager
+              blueprint is the first major expression. More blueprints are part of the broader platform direction.
+              Cortifact is becoming a more proactive and more complete operating layer over time.
+            </ScrollIlluminatedText>
+          </motion.div>
+
+          <PullQuote barColor="#e84d1c" isDark={isDark}>
+            From scattered signals
+            <br />
+            to coordinated execution.
+          </PullQuote>
+
+          {/* ── 07 · CLOSING CTA ──────────────────────────────────── */}
+          <div className={`mt-24 border-t pt-12 text-center ${isDark ? "border-gray-800" : "border-gray-200"}`}>
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.6 }}
+            >
+              <h2
+                className={`font-syne text-4xl font-bold leading-tight tracking-tight md:text-5xl ${
+                  isDark ? "text-gray-100" : "text-gray-900"
+                }`}
+              >
+                Build on a System
+                <br />
+                That Remembers.
+              </h2>
+              <ScrollIlluminatedText
+                isDark={isDark}
+                className="mx-auto mt-4 max-w-md text-sm font-light leading-relaxed"
+              >
+                Help your team remember more, coordinate better, and follow through with less friction. Starting with a
+                Project Manager blueprint and expanding into a broader platform for operational continuity.
+              </ScrollIlluminatedText>
+            </motion.div>
+
+            <div className="mt-8 flex flex-wrap justify-center gap-2">
+              {[
+                "Continuity",
+                "Follow-Through",
+                "Operational Intelligence",
+                "Blueprints",
+                "Coordinated Execution",
+                "Durable Memory",
+              ].map((tag, i) => (
+                <span
+                  key={i}
+                  className={`rounded-full border px-3.5 py-1.5 text-[11px] font-medium uppercase tracking-wide ${
+                    isDark ? "border-gray-800 text-gray-500" : "border-gray-200 text-gray-400"
+                  }`}
+                >
+                  {tag}
+                </span>
+              ))}
+            </div>
+          </div>
+
+          {/* Footer */}
+          <div
+            className={`mt-12 flex items-center justify-between border-t py-8 ${
+              isDark ? "border-gray-800" : "border-gray-200"
+            }`}
+          >
+            <img src={isDark ? "/cortifact-dark.png" : "/cortifact-light.png"} alt="Cortifact" className="h-8" />
+            <span className={`text-[11px] uppercase tracking-[0.1em] ${isDark ? "text-gray-600" : "text-gray-400"}`}>
+              Cortifacts
+            </span>
+          </div>
+        </motion.div>
+
+        <div className="mt-12 flex justify-center">
+          <motion.button
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={() => setIsWaitlistModalOpen(true)}
+            className={`group inline-flex h-12 items-center justify-center gap-2 rounded-full px-8 py-3 text-sm font-medium shadow-sm transition-all hover:shadow-lg ${
+              isDark ? "bg-white text-black hover:bg-gray-200" : "bg-gray-900 text-white hover:bg-gray-800"
+            }`}
+          >
+            Request Early Access
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 16 16"
+              fill="none"
+              className="transition-transform group-hover:translate-x-0.5"
+            >
+              <path
+                d="M8 1L15 8L8 15M15 8H1"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </motion.button>
+        </div>
+      </div>
+
+      {/* Theme Toggle */}
+      <ThemeToggle isDark={isDark} toggle={toggleTheme} />
+    </main>
+  )
+}
